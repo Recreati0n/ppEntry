@@ -1,0 +1,224 @@
+Option Explicit
+
+Sub prepaidEntryCreate()
+
+    'create entry worksheet
+    Dim ppEntry As Worksheet
+    Dim ppData As Worksheet
+    
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Sheets.add After:=ActiveSheet
+    ActiveSheet.Name = "Prepaid Entry"
+    Application.DisplayAlerts = True
+    Set ppEntry = Worksheets("Prepaid Entry")
+    Set ppData = Worksheets("Data")
+    
+    'create headings
+    
+    Selection.Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+    Rows("1:1").Select
+    Range("A1") = "JOURNAL"
+    Range("B1") = "DATE"
+    Range("C1") = "DESCRIPTION"
+    Range("D1") = "LINE_NO"
+    Range("E1") = "ACCT_NO"
+    Range("F1") = "LOCATION_ID"
+    Range("G1") = "DEPT_ID"
+    Range("H1") = "MEMO"
+    Range("I1") = "DEBIT"
+    Range("J1") = "CREDIT"
+    Range("K1") = "GLENTRY_CLASSID"
+        
+    'define variables
+    
+    Dim acct As Range
+    Dim loc As Range
+    Dim allo As Range
+    Dim dept As Range
+    
+    'copy account numbers
+    
+    ppData.Activate
+    Set acct = [I18]
+    Set acct = Range(acct, Cells(Rows.Count, acct.Column).End(xlUp))
+    acct.Select
+    Selection.Copy
+    
+    'paste account numbers
+
+    ppEntry.Activate
+    Range("E2").Select
+    ActiveSheet.Paste
+
+    'copy location
+
+    ppData.Activate
+    Set loc = [F18]
+    Set loc = Range(loc, Cells(Rows.Count, loc.Column).End(xlUp))
+    loc.Select
+    Selection.Copy
+    
+    'paste location
+    
+    ppEntry.Activate
+    Range("F2").Select
+    ActiveSheet.Paste
+
+    'copy allocation
+
+    ppData.Activate
+    Set allo = [E18]
+    Set allo = Range(allo, Cells(Rows.Count, allo.Column).End(xlUp))
+    allo.Select
+    Selection.Copy
+    
+    'paste allocation
+    
+    ppEntry.Activate
+    Range("G2").Select
+    ActiveSheet.Paste
+    
+    'copy department
+
+    ppData.Activate
+    Set dept = [G18]
+    Set dept = Range(dept, Cells(Rows.Count, dept.Column).End(xlUp))
+    dept.Select
+    Selection.Copy
+    
+    'paste department
+    
+    ppEntry.Activate
+    Range("K2").Select
+    ActiveSheet.Paste
+    
+    'combine vendor and descripiton for memo
+    
+    Dim lRow As Long
+    lRow = Worksheets("Prepaid Entry").Cells(Rows.Count, "E").End(xlUp).Row
+        Worksheets("Prepaid Entry").Range("H2:H" & lRow).Formula = "=Data!C18 & "" - "" & Data!D18"
+    
+    'enter month in box
+    Dim month As Variant
+    
+    month = Application.InputBox("Please, enter month in x/x/xxxx format", "Month")
+    
+    'find current month column and copy amounts
+    
+    ppData.Activate
+
+    Dim debit As Range
+    Worksheets("Data").Range("P17:CW17").Select
+    Set debit = Selection.Find(What:=month, After:=ActiveCell, LookIn:=xlFormulas, _
+            LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+            MatchCase:=False, SearchFormat:=False)
+    Range(debit.Offset(1, 0), Cells(Rows.Count, debit.Column).End(xlUp)).Copy
+    
+    'Paste debit
+    
+    ppEntry.Activate
+    Range("I2").PasteSpecial Paste:=xlPasteValues
+    
+    'delete rows containing zero values
+
+    Dim LastRow As Long
+    Dim n As Long
+    
+    LastRow = Range("I" & Rows.Count).End(xlUp).Row
+    
+    For n = LastRow To 2 Step -1
+        If Cells(n, 9).Value = 0 Then Cells(n, 9).EntireRow.Delete
+    Next n
+    
+    'delete rows containing N/A values
+    
+    Dim lastLoc As Long
+    Dim i As Long
+    
+    lastLoc = Range("F" & Rows.Count).End(xlUp).Row
+    
+    For i = lastLoc To 2 Step -1
+        If Cells(i, 6).Value = "N/A" Then Cells(i, 6).EntireRow.Delete
+    Next i
+    
+    'sort entry A to Z
+    
+    Range("A2", Range("K2").End(xlDown)).Sort Key1:=Range("H2"), Order1:=xlAscending, Header:=xlNo
+    
+    'create credit entry
+    Dim lAcct As Long
+    Dim lLoc As Long
+    Dim lMemo As Long
+    
+    With ActiveSheet
+        lAcct = .Cells(.Rows.Count, "E").End(xlUp).Row + 1
+        .Cells(lAcct, "E").Value = "13000"
+        lLoc = .Cells(.Rows.Count, "F").End(xlUp).Row + 1
+        .Cells(lLoc, "F").Value = "iPipeline"
+        lMemo = .Cells(.Rows.Count, "H").End(xlUp).Row + 1
+        .Cells(lMemo, "H").Value = "Prepaids"
+        
+    End With
+    Dim lDebit As Long
+    
+    lDebit = Range("I2").End(xlDown).Row
+    Cells(lDebit + 1, "J").Formula = "=ROUND(SUM(I2:I" & lDebit & "),2)"
+    
+    'create default line details
+    'fill journal column with GJ
+    Range("A2:A" & lMemo).Value = "GJ"
+    
+    'fill date column with date
+    Range("B2:B" & lMemo).Value = month
+    
+    'fill description column with prepaids
+    Range("C2:C" & lMemo).Value = "Prepaids"
+      
+    'fill line no column with line numbers
+    Dim fillRange As Range
+    Dim z As Long
+    Dim lLine As Long
+    With ppEntry
+        lLine = .Cells(.Rows.Count, "A").End(xlUp).Row
+    End With
+    
+    Set fillRange = ppEntry.Range("D2:D" & lLine - 1)
+    With fillRange
+        For z = .Cells(0, 1).Row To .Cells(.Rows.Count, 1).Row
+            .Cells(z, 1).Value = z
+        Next z
+    End With
+    
+    'format entry cells
+    'memo column formula to values
+    With ppEntry.Range("H:H")
+        .Cells.Copy
+        .Cells.PasteSpecial xlPasteValues
+        .Cells(1).Select
+    End With
+    Application.CutCopyMode = False
+    
+    'Replace support with operations
+    
+    
+    'set font and font size of prepaid entry
+    With ppEntry
+        .Cells.Font.Name = "Calibri"
+        .Cells.Font.Size = 11
+    End With
+    
+    
+    'round debits and credits
+    'Dim lRow As Long
+    
+'   Find last row in column A
+    'lRow = Cells(Rows.Count, "A").End(xlUp).Row
+
+'   Put rounding formula in column B, from row 1 to last row
+    'Range("B1:B" & lRow).FormulaR1C1 = "=ROUND(RC[-1],0)"
+    
+'   Convert formulas to hard-coded values
+    'Range("B1:B" & lRow).Value = Range("B1:B" & lRow).Value
+    
+End Sub
